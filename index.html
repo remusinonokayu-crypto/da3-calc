@@ -85,10 +85,62 @@ th, td {
     }
     label { font-size: 15px; }
 }
+
+/* --------------------
+   ダークモードテーマ
+-------------------- */
+body.dark {
+    background: #121212;
+    color: #f0f0f0;
+}
+
+body.dark h1, body.dark h2 {
+    color: #ffffff;
+}
+
+body.dark label {
+    color: #e0e0e0;
+}
+
+body.dark input, 
+body.dark select {
+    background: #1e1e1e;
+    color: #fff;
+    border: 1px solid #555;
+}
+
+body.dark button {
+    background: #333;
+    color: #fff;
+}
+
+body.dark button:hover {
+    background: #555;
+}
+
+body.dark .table-wrapper {
+    background: #1e1e1e;
+}
+
+body.dark table {
+    background: #1e1e1e;
+    color: #fff;
+}
+
+body.dark th, 
+body.dark td {
+    border: 1px solid #555;
+}
+
 </style>
 </head>
 
 <body>
+
+
+<button id="themeToggle" style="position:fixed; top:10px; right:10px; z-index:999;">
+    🌙 ダーク
+</button>
 
 <h1>DA3 経験値計算機</h1>
 
@@ -319,7 +371,33 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js')
         .then(() => console.log('Service Worker registered.'));
 }
+
+/* --------------------
+   ダークモード切替処理
+-------------------- */
+
+// 保存されたテーマを読み込み
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme === "dark") {
+    document.body.classList.add("dark");
+    document.getElementById("themeToggle").textContent = "☀ ライト";
+}
+
+// ボタンクリック
+document.getElementById("themeToggle").addEventListener("click", () => {
+    document.body.classList.toggle("dark");
+
+    const isDark = document.body.classList.contains("dark");
+
+    // 表示アイコン変更
+    document.getElementById("themeToggle").textContent = isDark ? "☀ ライト" : "🌙 ダーク";
+
+    // 保存
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+});
+
 </script>
 
 </body>
 </html>
+
