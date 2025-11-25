@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ギャザリング累積表（統合版・1C+あまり表示）</title>
+<title>ギャザリング累積表</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { font-family: sans-serif; margin: 10px; background-color: #fff; color: #000; transition: background-color 0.3s, color 0.3s; }
@@ -42,12 +42,12 @@ body.dark button:hover { background-color: #666; }
 </head>
 <body>
 
-<h2>ギャザリング累積表（統合版・1C+あまり表示）</h2>
+<h2>ギャザリング累積表</h2>
 
 <button onclick="toggleDarkMode()">ダークモード切替</button><br><br>
 
-<label>1回のギャザリングに使う回数: <input type="number" id="singleUse" value="1" min="1"></label><br>
-<label>ギャザリングツール使用個数 (最大27): <input type="number" id="toolCount" value="1" min="1" max="27"></label><br>
+<label>1個のギャザリングツールに付与された回数: <input type="number" id="singleUse" value="1" min="1"></label><br>
+<label>ギャザリングツール使用個数 (最大27個): <input type="number" id="toolCount" value="1" min="1" max="27"></label><br>
 
 <h4>アイテム入力</h4>
 <div id="itemsContainer">
@@ -69,7 +69,7 @@ body.dark button:hover { background-color: #666; }
 <table id="cumulativeTable">
   <tr id="tableHeader">
     <th>#</th>
-    <th>1回の回数</th>
+    <th>1個の回数</th>
     <th>総ツール使用個数</th>
     <th>総アイテム数</th>
     <th>Cカウント</th>
