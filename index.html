@@ -128,12 +128,24 @@ body.dark th,
 body.dark td {
     border: 1px solid #555;
 }
+
+.theme-toggle {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 9999;         /* 最前面に表示 */
+    width: auto !important; /* ボタンを小さく維持 */
+    padding: 10px 14px;
+    font-size: 16px;
+    border-radius: 6px;
+}
+ 
 </style>
 </head>
 
 <body>
 
-<button id="themeToggle" style="position:fixed; top:10px; right:10px; z-index:100;">
+<button id="themeToggle" class="theme-toggle">
     🌙 ダーク
 </button>
 
@@ -504,5 +516,6 @@ document.getElementById("themeToggle").addEventListener("click", () => {
 
 </body>
 </html>
+
 
 
