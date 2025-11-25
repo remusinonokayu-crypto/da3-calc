@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>ギャザリング累積表</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 body { font-family: sans-serif; margin: 10px; background-color: #fff; color: #000; transition: background-color 0.3s, color 0.3s; }
 body.dark { background-color: #121212; color: #eee; }
@@ -32,12 +32,88 @@ body.dark button { background-color: #444; color: #fff; }
 body.dark button:hover { background-color: #666; }
 
 @media (max-width: 600px) {
-  input { width: 60px; padding: 5px; }
+  input { width: 60px; padding: 5px; font-size: 14px; }
   button { padding: 5px 10px; font-size: 14px; }
   th, td { font-size: 12px; padding: 5px; }
+  .labelRow {
+    flex-wrap: wrap;
+  }
+  .labelRow > div {
+    width: 45%;
+    margin-bottom: 4px;
+  }
+  .itemRow {
+    flex-wrap: wrap;
+  }
+  .itemRow input {
+    width: 45% !important;
+    margin-bottom: 4px;
+  }
+  .itemRow button {
+    width: 100%;
+    margin: 0 0 8px 0;
+  }
 }
 
 .table-container { overflow-x: auto; }
+
+.labelRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+.labelRow > div {
+  font-weight: bold;
+}
+.labelName {
+  width: 80px;
+}
+.labelCount {
+  width: 110px;
+}
+.labelButton {
+  width: 60px;
+}
+.itemRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 5px;
+  align-items: center;
+}
+.itemRow input {
+  width: 80px;
+  margin: 0;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+  background-color: #fff;
+  color: #000;
+  transition: background-color 0.3s, color 0.3s;
+}
+body.dark .itemRow input {
+  background-color: #222;
+  color: #eee;
+  border: 1px solid #555;
+}
+.itemRow button {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  background-color: #ccc;
+  color: #000;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s;
+}
+body.dark .itemRow button {
+  background-color: #444;
+  color: #fff;
+}
+.itemRow button:hover {
+  background-color: #999;
+}
+body.dark .itemRow button:hover {
+  background-color: #666;
+}
 </style>
 </head>
 <body>
@@ -50,6 +126,14 @@ body.dark button:hover { background-color: #666; }
 <label>ギャザリングツール使用個数 (最大27個): <input type="number" id="toolCount" value="1" min="1" max="27"></label><br>
 
 <h4>アイテム入力</h4>
+
+<!-- ラベル追加 -->
+<div class="labelRow">
+  <div class="labelName">アイテム名</div>
+  <div class="labelCount">アイテム個数</div>
+  <div class="labelButton"></div>
+</div>
+
 <div id="itemsContainer">
   <div class="itemRow">
     <input type="text" placeholder="アイテム名" class="itemName">
@@ -69,7 +153,7 @@ body.dark button:hover { background-color: #666; }
 <table id="cumulativeTable">
   <tr id="tableHeader">
     <th>#</th>
-    <th>1個の回数</th>
+    <th>1回の回数</th>
     <th>総ツール使用個数</th>
     <th>総アイテム数</th>
     <th>Cカウント</th>
