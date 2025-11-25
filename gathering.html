@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ギャザリング累積表（統合版・1C+あまり表示）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: sans-serif; margin: 10px; background-color: #fff; color: #000; transition: background-color 0.3s, color 0.3s; }
+body.dark { background-color: #121212; color: #eee; }
+
+h2, h3, h4 { transition: color 0.3s; }
+body.dark h2, body.dark h3, body.dark h4 { color: #fff; }
+
+table { border-collapse: collapse; width: 100%; overflow-x: auto; display: block; }
+th, td { border: 1px solid #aaa; padding: 8px; text-align: right; font-size: 14px; transition: background-color 0.3s, color 0.3s; }
+td.name { text-align: left; }
+tr:nth-child(even) { background-color: #f9f9f9; }
+tr:nth-child(odd) { background-color: #fff; }
+tr.highlight { background-color: #ffd !important; }
+
+body.dark th { background-color: #1e1e1e; color: #fff; }
+body.dark tr:nth-child(even) { background-color: #1a1a1a; }
+body.dark tr:nth-child(odd) { background-color: #222; }
+body.dark tr.highlight { background-color: #444 !important; }
+
+input { width: 80px; margin: 4px; padding: 6px; border-radius: 4px; border: 1px solid #aaa; background-color: #fff; color: #000; transition: background-color 0.3s, color 0.3s; }
+body.dark input { background-color: #222; color: #eee; border: 1px solid #555; }
+
+button { margin: 5px 5px 5px 0; padding: 6px 12px; border-radius: 4px; border: none; background-color: #ccc; color: #000; cursor: pointer; transition: background-color 0.3s, color 0.3s; }
+button:hover { background-color: #999; }
+body.dark button { background-color: #444; color: #fff; }
+body.dark button:hover { background-color: #666; }
+
+@media (max-width: 600px) {
+  input { width: 60px; padding: 5px; }
+  button { padding: 5px 10px; font-size: 14px; }
+  th, td { font-size: 12px; padding: 5px; }
+}
+
+.table-container { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h2>ギャザリング累積表（統合版・1C+あまり表示）</h2>
+
+<button onclick="toggleDarkMode()">ダークモード切替</button><br><br>
+
+<label>1回のギャザリングに使う回数: <input type="number" id="singleUse" value="1" min="1"></label><br>
+<label>ギャザリングツール使用個数 (最大27): <input type="number" id="toolCount" value="1" min="1" max="27"></label><br>
+
+<h4>アイテム入力</h4>
+<div id="itemsContainer">
+  <div class="itemRow">
+    <input type="text" placeholder="アイテム名" class="itemName">
+    <input type="number" placeholder="個数" class="itemCount" min="0">
+  </div>
+</div>
+<button onclick="addItemRow()">アイテム追加</button><br>
+
+<button onclick="addData()">データ追加</button>
+<button onclick="undoData()">Undo</button>
+<button onclick="redoData()">Redo</button>
+<button onclick="clearAllData()">全データ消去</button>
+<button onclick="undoClear()">Undo消去</button>
+
+<h3>累積表</h3>
+<div class="table-container">
+<table id="cumulativeTable">
+  <tr id="tableHeader">
+    <th>#</th>
+    <th>1回の回数</th>
+    <th>総ツール使用個数</th>
+    <th>総アイテム数</th>
+    <th>Cカウント</th>
+  </tr>
+</table>
+</div>
+
+<script>
+let data = [];
+let undoStack = [];
+let redoStack = [];
+let allItemNames = new Set();
+let clearedData = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const savedData = localStorage.getItem('gatherData');
+    const savedUndo = localStorage.getItem('gatherUndo');
+    const savedRedo = localStorage.getItem('gatherRedo');
+    const savedDark = localStorage.getItem('gatherDark');
+
+    if(savedData) data = JSON.parse(savedData);
+    if(savedUndo) undoStack = JSON.parse(savedUndo);
+    if(savedRedo) redoStack = JSON.parse(savedRedo);
+    if(savedDark === 'true') document.body.classList.add('dark');
+
+    data.forEach(d => d.itemNames.forEach(name => allItemNames.add(name)));
+    updateTable();
+});
+
+function saveData() {
+    localStorage.setItem('gatherData', JSON.stringify(data));
+    localStorage.setItem('gatherUndo', JSON.stringify(undoStack));
+    localStorage.setItem('gatherRedo', JSON.stringify(redoStack));
+    localStorage.setItem('gatherDark', document.body.classList.contains('dark'));
+}
+
+function toggleDarkMode() {
+    document.body.classList.toggle('dark');
+    saveData();
+}
+
+function addItemRow() {
+    const container = document.getElementById('itemsContainer');
+    const div = document.createElement('div');
+    div.className = 'itemRow';
+    div.innerHTML = `<input type="text" placeholder="アイテム名" class="itemName">
+                     <input type="number" placeholder="個数" class="itemCount" min="0">
+                     <button onclick="this.parentNode.remove()">削除</button>`;
+    container.appendChild(div);
+}
+
+function getItemData() {
+    const rows = document.querySelectorAll('#itemsContainer .itemRow');
+    let itemNames = [];
+    let itemCounts = [];
+    rows.forEach(row => {
+        const name = row.querySelector('.itemName').value.trim();
+        const count = Number(row.querySelector('.itemCount').value);
+        if(name && !isNaN(count)) {
+            itemNames.push(name);
+            itemCounts.push(count);
+            allItemNames.add(name);
+        }
+    });
+    return {itemNames, itemCounts};
+}
+
+function addData() {
+    const singleUse = Number(document.getElementById('singleUse').value);
+    const toolCount = Number(document.getElementById('toolCount').value);
+    if(singleUse <= 0 || toolCount <= 0 || toolCount > 27) { alert("正しい値を入力してください（ツール使用個数は1～27）"); return; }
+
+    const {itemNames, itemCounts} = getItemData();
+    if(itemNames.length === 0) { alert("少なくとも1つのアイテムを入力してください"); return; }
+
+    const totalItems = itemCounts.reduce((a,b)=>a+b,0);
+
+    undoStack.push(JSON.parse(JSON.stringify(data)));
+    redoStack = [];
+
+    data.push({singleUse, toolCount, totalItems, itemNames, itemCounts});
+    saveData();
+    updateTable();
+}
+
+function undoData() {
+    if(undoStack.length === 0) { alert("Undo履歴がありません"); return; }
+    redoStack.push(JSON.parse(JSON.stringify(data)));
+    data = undoStack.pop();
+    saveData();
+    updateTable();
+}
+
+function redoData() {
+    if(redoStack.length === 0) { alert("Redo履歴がありません"); return; }
+    undoStack.push(JSON.parse(JSON.stringify(data)));
+    data = redoStack.pop();
+    saveData();
+    updateTable();
+}
+
+function clearAllData() {
+    if(!confirm("本当に全データを消去しますか？")) return;
+    clearedData = {
+        data: JSON.parse(JSON.stringify(data)),
+        undoStack: JSON.parse(JSON.stringify(undoStack)),
+        redoStack: JSON.parse(JSON.stringify(redoStack)),
+        allItemNames: new Set([...allItemNames])
+    };
+
+    data = [];
+    undoStack = [];
+    redoStack = [];
+    allItemNames = new Set();
+    saveData();
+    updateTable();
+    const container = document.getElementById('itemsContainer');
+    container.innerHTML = `<div class="itemRow">
+        <input type="text" placeholder="アイテム名" class="itemName">
+        <input type="number" placeholder="個数" class="itemCount" min="0">
+    </div>`;
+}
+
+function undoClear() {
+    if(!clearedData) { alert("消去データがありません"); return; }
+    data = clearedData.data;
+    undoStack = clearedData.undoStack;
+    redoStack = clearedData.redoStack;
+    allItemNames = clearedData.allItemNames;
+    clearedData = null;
+    saveData();
+    updateTable();
+}
+
+function updateTable() {
+    const table = document.getElementById('cumulativeTable');
+    table.querySelectorAll('tr').forEach(row=>{ if(row.id !== "tableHeader") row.remove(); });
+
+    const header = table.querySelector('#tableHeader');
+    header.innerHTML = `<th>#</th><th>1回の回数</th><th>総ツール使用個数</th><th>総アイテム数</th>`;
+    Array.from(allItemNames).forEach(name=>{
+        header.innerHTML += `<th>${name}数</th><th>${name}確率</th>`;
+    });
+    header.innerHTML += `<th>Cカウント</th>`;
+
+    let cumulativeTools = 0;
+    let cumulativeItems = 0;
+    let cumulativeCounts = {};
+
+    data.forEach((d,index)=>{
+        cumulativeTools += d.toolCount;
+        cumulativeItems += d.totalItems;
+
+        d.itemNames.forEach((name,i)=>{
+            if(!cumulativeCounts[name]) cumulativeCounts[name] = 0;
+            cumulativeCounts[name] += d.itemCounts[i];
+        });
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${index+1}</td>
+                        <td>${d.singleUse}</td>
+                        <td>${cumulativeTools}</td>
+                        <td>${cumulativeItems}</td>`;
+
+        Array.from(allItemNames).forEach(name=>{
+            const count = cumulativeCounts[name] || 0;
+            const prob = cumulativeItems > 0 ? ((count/cumulativeItems)*100).toFixed(1) + '%' : '0%';
+            tr.innerHTML += `<td>${count}</td><td>${prob}</td>`;
+        });
+
+        // 1C+あまり形式でCカウント
+        const fullC = Math.floor(cumulativeTools / 27);
+        const remainder = cumulativeTools % 27;
+        let Cdisplay = "";
+        if(fullC > 0) {
+            Cdisplay = `${fullC}C`;
+            if(remainder > 0) Cdisplay += `+${remainder}`;
+        } else {
+            Cdisplay = `${remainder}`;
+        }
+        tr.innerHTML += `<td>${Cdisplay}</td>`;
+        table.appendChild(tr);
+    });
+}
+</script>
+</body>
+</html>
