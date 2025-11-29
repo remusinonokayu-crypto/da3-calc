@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>採取・採掘アイテム統計管理</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    padding: 20px;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  /* ライトテーマ */
+  body.light {
+    background: #ffffff;
+    color: #000000;
+  }
+  body.light .box {
+    background: #f9f9f9;
+    border: 1px solid #ccc;
+  }
+
+  /* ダークテーマ */
+  body.dark {
+    background: #1e1e1e;
+    color: #dddddd;
+  }
+  body.dark .box {
+    background: #2c2c2c;
+    border: 1px solid #555;
+  }
+
+  .box {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+  }
+
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  th, td {
+    border: 1px solid #888;
+    padding: 5px;
+    text-align: center;
+  }
+
+  button {
+    margin-top: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+  body.dark button {
+    background: #444;
+    color: #fff;
+    border: 1px solid #666;
+  }
+  body.light button {
+    background: #eee;
+    color: #000;
+    border: 1px solid #ccc;
+  }
+
+  /* スマホ対応 */
+  @media (max-width: 600px) {
+    body {
+      padding: 10px;
+      font-size: 0.95em;
+    }
+    h1 { font-size: 1.4em; }
+    .box { padding: 12px; }
+
+    select, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+    }
+
+    #itemInputs div { margin-bottom: 8px; }
+    #itemInputs input[type="number"] {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table { min-width: 600px; }
+  }
+</style>
+</head>
+
+<body class="light">
+
+<h1>採取・採掘アイテム統計管理</h1>
+
+<!-- テーマ切り替え -->
+<div class="box">
+  <label>
+    テーマ切り替え：
+    <select id="themeSelect" onchange="changeTheme()">
+      <option value="light">ライト</option>
+      <option value="dark">ダーク</option>
+    </select>
+  </label>
+</div>
+
+<div class="box">
+  <label>カテゴリ：
+    <select id="categorySelect" onchange="loadCategory()">
+      <option value="gather">採取</option>
+      <option value="mine">採掘</option>
+    </select>
+  </label>
+
+  <label>町の選択：
+    <select id="townSelect" onchange="loadTown()"></select>
+  </label>
+
+  <button onclick="showAllTownSummary()">全町まとめ</button>
+</div>
+
+<div class="box">
+  <h2>取得アイテム入力</h2>
+  <div id="itemInputs"></div>
+  <button onclick="saveData()">保存</button>
+  <button onclick="undo()">ひとつ前に戻す</button>
+  <button onclick="redo()">戻した履歴を復元</button>
+</div>
+
+<div class="box">
+  <h2>統計結果</h2>
+  <div class="table-wrapper">
+    <div id="stats"></div>
+  </div>
+</div>
+
+<div class="box">
+  <h2>全町統合まとめ</h2>
+  <div class="table-wrapper">
+    <div id="allTownSummary"></div>
+  </div>
+</div>
+
+<div class="box">
+  <h2>履歴管理</h2>
+  <button onclick="clearAll()">全履歴削除</button>
+</div>
+
+<script>
+/* ===========================
+   テーマ管理
+=========================== */
+function changeTheme() {
+  const theme = document.getElementById("themeSelect").value;
+  document.body.className = theme;
+  localStorage.setItem("theme_mode", theme);
+}
+const savedTheme = localStorage.getItem("theme_mode") || "light";
+document.body.className = savedTheme;
+document.getElementById("themeSelect").value = savedTheme;
+
+
+/* ===========================
+   データセット
+=========================== */
+const dataSet = {
+  gather: {
+    TownA: ["Berry", "Leaf", "Herb"],
+    TownB: ["Flower", "Seed"],
+    TownC: ["Mushroom", "Vine"]
+  },
+  mine: {
+    TownA: ["Iron", "Gold", "Silver"],
+    TownB: ["Coal", "Stone", "Ore"],
+    TownC: ["Crystal", "Quartz"]
+  }
+};
+
+const HISTORY_LIMIT = 20;
+
+
+/* ===========================
+   カテゴリ変更
+=========================== */
+function loadCategory() {
+  const mode = document.getElementById("categorySelect").value;
+  const sel = document.getElementById("townSelect");
+
+  sel.innerHTML = "";
+  Object.keys(dataSet[mode]).forEach(town => {
+    const opt = document.createElement("option");
+    opt.value = town;
+    opt.textContent = town;
+    sel.appendChild(opt);
+  });
+
+  loadTown();
+}
+
+
+/* ===========================
+   町変更
+=========================== */
+function loadTown() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+
+  const items = dataSet[mode][town];
+  const box = document.getElementById("itemInputs");
+  box.innerHTML = "";
+
+  items.forEach(name => {
+    const div = document.createElement("div");
+    div.innerHTML = `${name}<br><input type="number" id="input_${name}" min="0" value="0">`;
+    box.appendChild(div);
+  });
+
+  showStats();
+}
+
+
+/* ===========================
+   データ保存
+=========================== */
+function saveData() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const items = dataSet[mode][town];
+
+  const key = "townData_" + mode + "_" + town;
+  let data = JSON.parse(localStorage.getItem(key) || '{}');
+
+  if (!data.records) data.records = [];
+  if (!data.undo) data.undo = [];
+
+  const record = {};
+  items.forEach(name => {
+    record[name] = Number(document.getElementById("input_" + name).value);
+  });
+
+  data.records.push(record);
+
+  if (data.records.length > HISTORY_LIMIT)
+    data.records.shift();
+
+  data.undo = [];
+
+  localStorage.setItem(key, JSON.stringify(data));
+  showStats();
+}
+
+
+/* ===========================
+   Undo
+=========================== */
+function undo() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const key = "townData_" + mode + "_" + town;
+
+  let data = JSON.parse(localStorage.getItem(key) || '{}');
+  if (!data.records || data.records.length === 0) return;
+
+  const removed = data.records.pop();
+  if (!data.undo) data.undo = [];
+  data.undo.push(removed);
+
+  localStorage.setItem(key, JSON.stringify(data));
+  showStats();
+}
+
+
+/* ===========================
+   Redo
+=========================== */
+function redo() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const key = "townData_" + mode + "_" + town;
+
+  let data = JSON.parse(localStorage.getItem(key) || '{}');
+  if (!data.undo || data.undo.length === 0) return;
+
+  const rec = data.undo.pop();
+  data.records.push(rec);
+
+  localStorage.setItem(key, JSON.stringify(data));
+  showStats();
+}
+
+
+/* ===========================
+   全履歴削除
+=========================== */
+function clearAll() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const key = "townData_" + mode + "_" + town;
+
+  localStorage.removeItem(key);
+  showStats();
+}
+
+
+/* ===========================
+   町別統計
+=========================== */
+function showStats() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const items = dataSet[mode][town];
+
+  const key = "townData_" + mode + "_" + town;
+  const data = JSON.parse(localStorage.getItem(key) || '{}');
+
+  if (!data.records || data.records.length === 0) {
+    document.getElementById("stats").innerHTML = "まだデータがありません";
+    return;
+  }
+
+  const count = data.records.length;
+
+  const sum = {}, max = {}, min = {};
+  items.forEach(i => {
+    sum[i] = 0;
+    max[i] = 0;
+    min[i] = Infinity;
+  });
+
+  data.records.forEach(rec => {
+    items.forEach(i => {
+      const v = rec[i];
+      sum[i] += v;
+      if (v > max[i]) max[i] = v;
+      if (v < min[i]) min[i] = v;
+    });
+  });
+
+  let totalItems = 0;
+  items.forEach(i => totalItems += sum[i]);
+
+  let html = `<table><tr>
+    <th>アイテム</th>
+    <th>平均</th>
+    <th>最大</th>
+    <th>最小</th>
+    <th>取得確率</th>
+    <th>入力回数</th>
+  </tr>`;
+
+  items.forEach(name => {
+    const avg = (sum[name] / count).toFixed(2);
+    const prob = totalItems > 0 ? ((sum[name] / totalItems) * 100).toFixed(2) + "%" : "0%";
+
+    html += `
+    <tr>
+      <td>${name}</td>
+      <td>${avg}</td>
+      <td>${max[name]}</td>
+      <td>${min[name]}</td>
+      <td>${prob}</td>
+      <td>${count}</td>
+    </tr>`;
+  });
+
+  html += `</table>`;
+  document.getElementById("stats").innerHTML = html;
+}
+
+
+/* ===========================
+   全町統合まとめ
+=========================== */
+function showAllTownSummary() {
+  const mode = document.getElementById("categorySelect").value;
+  const towns = Object.keys(dataSet[mode]);
+
+  let globalTotals = {};
+  let globalSum = 0;
+
+  // 全町の合計
+  towns.forEach(town => {
+    const key = "townData_" + mode + "_" + town;
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+
+    if (!data.records) return;
+
+    const items = dataSet[mode][town];
+
+    const sum = {};
+    items.forEach(i => sum[i] = 0);
+
+    data.records.forEach(rec => {
+      items.forEach(i => sum[i] += rec[i]);
+    });
+
+    items.forEach(i => {
+      if (!globalTotals[i]) globalTotals[i] = 0;
+      globalTotals[i] += sum[i];
+      globalSum += sum[i];
+    });
+  });
+
+  let html = "";
+
+  towns.forEach(town => {
+    const key = "townData_" + mode + "_" + town;
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    const items = dataSet[mode][town];
+
+    html += `<h3>${town}</h3>`;
+
+    if (!data.records || data.records.length === 0) {
+      html += `<p>まだデータがありません。</p>`;
+      return;
+    }
+
+    const count = data.records.length;
+
+    const sum = {}, max = {}, min = {};
+    items.forEach(i => {
+      sum[i] = 0;
+      max[i] = 0;
+      min[i] = Infinity;
+    });
+
+    data.records.forEach(rec => {
+      items.forEach(i => {
+        const v = rec[i];
+        sum[i] += v;
+        if (v > max[i]) max[i] = v;
+        if (v < min[i]) min[i] = v;
+      });
+    });
+
+    let townTotal = 0;
+    items.forEach(i => townTotal += sum[i]);
+
+    html += `<table>
+      <tr>
+        <th>アイテム</th>
+        <th>平均</th>
+        <th>最大</th>
+        <th>最小</th>
+        <th>町内確率</th>
+        <th>カテゴリ確率</th>
+        <th>入力回数</th>
+      </tr>
+    `;
+
+    items.forEach(i => {
+      const avg = (sum[i] / count).toFixed(2);
+      const probTown = townTotal > 0 ? ((sum[i] / townTotal) * 100).toFixed(2) + "%" : "0%";
+      const probGlobal = globalSum > 0 ? ((globalTotals[i] / globalSum) * 100).toFixed(2) + "%" : "0%";
+
+      html += `
+      <tr>
+        <td>${i}</td>
+        <td>${avg}</td>
+        <td>${max[i]}</td>
+        <td>${min[i]}</td>
+        <td>${probTown}</td>
+        <td>${probGlobal}</td>
+        <td>${count}</td>
+      </tr>`;
+    });
+
+    html += `</table><br>`;
+  });
+
+  document.getElementById("allTownSummary").innerHTML = html;
+}
+
+
+// 初期ロード
+loadCategory();
+</script>
+
+</body>
+</html>
