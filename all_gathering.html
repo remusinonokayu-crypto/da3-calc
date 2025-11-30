@@ -116,6 +116,13 @@
   </label>
 </div>
 
+<!-- 保存数設定 -->
+<div class="box">
+  <h2>履歴保存数の設定</h2>
+  <input id="historyLimitInput" type="number" min="1" value="20">
+  <button onclick="updateHistoryLimit()">保存数を変更</button>
+</div>
+
 <div class="box">
   <label>カテゴリ：
     <select id="categorySelect" onchange="loadCategory()">
@@ -177,18 +184,229 @@ document.getElementById("themeSelect").value = savedTheme;
 =========================== */
 const dataSet = {
   gather: {
-    TownA: ["Berry", "Leaf", "Herb"],
-    TownB: ["Flower", "Seed"],
-    TownC: ["Mushroom", "Vine"]
+    "レポロ村（苗木）": [
+      "木の枝",
+      "柔らかい木",
+      "大きな葉っぱ",
+      "蜂の巣",
+      "蜂の巣のかけら",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "レポロ村（綿）": [
+      "コットン",
+      "魔法石レベル1",
+      "魔法石レベル2",
+       "魔法石レベル3",
+      "グロースクリスタルレベル1"
+     
+    ],
+    "マクルダ町（苗木）": [
+      "大樹の丸太",
+      "天然樹液",
+      "大きな葉っぱ",
+      "木の枝",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1",
+      "樹齢1000年越えの世界樹の一部"
+      
+    ],
+    "ルーチェア町（苗木）": [
+      "木の枝",
+      "大きな葉っぱ",
+      "天然樹液",
+      "魔法の樹木",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1",
+      "樹齢1000年越えの世界樹の一部"
+      
+    ],
+    "ソルソロ王国（苗木）": [
+      "木の枝",
+      "大きな葉っぱ",
+      "魔法の樹木",
+      "謎の化石",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1",
+      "樹齢1000年越えの世界樹の一部"
+      
+    ],
+    "ソルソロ王国 セルバ農園（畑）": [
+      "調理用薬草",
+      "小麦",
+      "じゃがいも",
+      "ニンジン",
+      "ビートルート",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+     
+    ],
+    "サプネラ王国（苗木）": [
+      "輝く砂",
+      "砂の結晶",
+      "砂漠の涙",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "セシド町（採取）": [
+      "綺麗な果実",
+      "泥まみれの骨",
+      "魔法石lv1",
+      "魔法石lv2",
+      "魔法石lv3",
+      "グロースクリスタルレベル1"
+    ]
   },
+
   mine: {
-    TownA: ["Iron", "Gold", "Silver"],
-    TownB: ["Coal", "Stone", "Ore"],
-    TownC: ["Crystal", "Quartz"]
+    "レポロ村（採掘）": [
+      "石",
+      "頑丈な石",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "マクルダ町（採掘）": [
+      "石",
+      "頑丈な石",
+      "鉛",
+      "鉄",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "ルーチェア町（採掘）": [
+      "石",
+      "頑丈な石",
+      "鉛",
+      "鉄",
+      "魔石の破片",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "ソルソロ王国（平原）": [
+      "金",
+      "鋼の粉",
+      "サルファー原石",
+      "石",
+      "頑丈な石",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "ソルソロ王国（砂漠）": [
+      "金",
+      "赤褐色の鉱物",
+      "サルファー原石",
+      "石",
+      "頑丈な石",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1"
+      
+    ],
+    "デイリーダンジョン": [
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1",
+      "グロースクリスタルレベル2",
+      "グロースクリスタルレベル3"
+    ],
+    "サプネラ王国（採掘）": [
+      "赤い鉱石",
+      "サルファー原石",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルレベル1",
+      "エビルナイト原石"
+    ],
+    "セシド町（採掘）": [
+      "風化した化石",
+      "紫の水晶",
+      "魔法石レベル1",
+      "魔法石レベル2",
+      "魔法石レベル3",
+      "グロースクリスタルlv1",
+      "夢見の勾玉"
+    ]
   }
 };
 
-const HISTORY_LIMIT = 20;
+
+let HISTORY_LIMIT = 20;
+
+
+/* ===========================
+   保存数変更（警告機能付き）
+=========================== */
+function updateHistoryLimit() {
+  const newLimit = Number(document.getElementById("historyLimitInput").value);
+
+  if (!newLimit || newLimit <= 0) {
+    alert("保存数は 1 以上にしてください。");
+    return;
+  }
+
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const key = "townData_" + mode + "_" + town;
+
+  let data = JSON.parse(localStorage.getItem(key) || '{}');
+  const currentCount = data.records ? data.records.length : 0;
+
+  if (currentCount > newLimit) {
+    const diff = currentCount - newLimit;
+
+    const ok = confirm(
+      `現在の履歴は ${currentCount} 件あります。\n` +
+      `保存数を ${newLimit} に変更すると、古い ${diff} 件が削除されます。\n` +
+      "本当に変更してよろしいですか？"
+    );
+
+    if (!ok) {
+      document.getElementById("historyLimitInput").value = HISTORY_LIMIT;
+      return;
+    }
+  }
+
+  HISTORY_LIMIT = newLimit;
+
+  if (data.records && data.records.length > HISTORY_LIMIT) {
+    while (data.records.length > HISTORY_LIMIT) {
+      data.records.shift();
+    }
+    localStorage.setItem(key, JSON.stringify(data));
+  }
+
+  alert(`保存数を ${HISTORY_LIMIT} 件に更新しました。`);
+  showStats();
+}
 
 
 /* ===========================
@@ -232,7 +450,7 @@ function loadTown() {
 
 
 /* ===========================
-   データ保存
+   データ保存（削除前警告）
 =========================== */
 function saveData() {
   const mode = document.getElementById("categorySelect").value;
@@ -244,6 +462,15 @@ function saveData() {
 
   if (!data.records) data.records = [];
   if (!data.undo) data.undo = [];
+
+  if (data.records.length >= HISTORY_LIMIT) {
+    const ok = confirm(
+      "保存上限に達しています。\n" +
+      "新しいデータを保存すると一番古い履歴が削除されます。\n" +
+      "続行しますか？"
+    );
+    if (!ok) return;
+  }
 
   const record = {};
   items.forEach(name => {
@@ -308,6 +535,9 @@ function clearAll() {
   const mode = document.getElementById("categorySelect").value;
   const town = document.getElementById("townSelect").value;
   const key = "townData_" + mode + "_" + town;
+
+  const ok = confirm("本当にこの町の全履歴を削除しますか？");
+  if (!ok) return;
 
   localStorage.removeItem(key);
   showStats();
@@ -390,7 +620,6 @@ function showAllTownSummary() {
   let globalTotals = {};
   let globalSum = 0;
 
-  // 全町の合計
   towns.forEach(town => {
     const key = "townData_" + mode + "_" + town;
     const data = JSON.parse(localStorage.getItem(key) || '{}');
@@ -398,7 +627,6 @@ function showAllTownSummary() {
     if (!data.records) return;
 
     const items = dataSet[mode][town];
-
     const sum = {};
     items.forEach(i => sum[i] = 0);
 
@@ -428,7 +656,6 @@ function showAllTownSummary() {
     }
 
     const count = data.records.length;
-
     const sum = {}, max = {}, min = {};
     items.forEach(i => {
       sum[i] = 0;
@@ -484,7 +711,7 @@ function showAllTownSummary() {
 }
 
 
-// 初期ロード
+/* 初期ロード */
 loadCategory();
 </script>
 
