@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>防具データ管理（統合版）</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    padding: 20px;
+    transition: background 0.3s, color 0.3s;
+  }
+  body.light { background: #ffffff; color: #000000; }
+  body.dark  { background: #1e1e1e; color: #e0e0e0; }
+
+  body.dark select, body.dark input {
+    background: #2d2d2d;
+    color: #e5e5e5;
+    border: 1px solid #555;
+  }
+
+  select, input { margin: 4px; }
+
+  .result-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid #666;
+  }
+
+  .delete-btn {
+    background: #d9534f;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+
+  .delete-btn:hover { opacity: 0.8; }
+
+  .toggle-area { margin-bottom: 20px; }
+</style>
+</head>
+
+<body class="light">
+<h2>防具データ管理（選択値とソート値を統合）</h2>
+
+<div class="toggle-area">
+  <label>
+    <input type="checkbox" id="darkToggle"> ダークモード
+  </label>
+</div>
+
+<h3>データ入力</h3>
+<div id="inputArea"></div>
+
+<hr>
+
+<h3>ソート条件</h3>
+<div id="sortArea"></div>
+
+<button onclick="sortData()">ソート</button>
+
+<h3>ソート結果</h3>
+<div id="sortedList"></div>
+
+<hr>
+
+<h3>保存されている全データ</h3>
+<div id="allDataList"></div>
+
+<script>
+//-----------------------------------------------
+// ① 選択肢データ（ここを書き換えればすべてに反映）
+//-----------------------------------------------
+const OPTIONS = {
+  armorName: ["鉄のよろい", "布のローブ", "皮のアーマー"],
+  type: ["金属", "布", "皮"],
+  part: ["頭", "胴体", "足"],
+  times: ["1", "2", "3", "4", "5"],
+  power: ["小", "中", "大"],
+  ex: ["なし", "攻撃UP", "防御UP", "魔力UP"]
+};
+
+//-----------------------------------------------
+// LocalStorage データ
+//-----------------------------------------------
+let armorData = JSON.parse(localStorage.getItem("armorData") || "[]");
+
+//-----------------------------------------------
+// ダークモード自動復元
+//-----------------------------------------------
+let mode = localStorage.getItem("darkMode") || "light";
+document.body.className = mode;
+document.getElementById("darkToggle").checked = mode === "dark";
+
+document.getElementById("darkToggle").addEventListener("change", () => {
+  document.body.className = document.getElementById("darkToggle").checked ? "dark" : "light";
+  localStorage.setItem("darkMode", document.body.className);
+});
+
+//-----------------------------------------------
+// ② select生成関数（input＋sort両方で使用）
+//-----------------------------------------------
+function createSelect(id, values, addBlank=false) {
+  let html = `<select id="${id}">`;
+  if (addBlank) html += `<option value="">指定なし</option>`;
+  values.forEach(v => {
+    html += `<option value="${v}">${v}</option>`;
+  });
+  html += "</select>";
+  return html;
+}
+
+//-----------------------------------------------
+// ③ 入力欄を生成
+//-----------------------------------------------
+function buildInputArea() {
+  let box = `
+    防具名：${createSelect("armorName", OPTIONS.armorName)}
+    種類：${createSelect("type", OPTIONS.type)}
+    パーツ：${createSelect("part", OPTIONS.part)}
+    叩き回数：${createSelect("times", OPTIONS.times)}
+    叩き能力値：${createSelect("power", OPTIONS.power)}
+    EX1：${createSelect("ex1", OPTIONS.ex)}
+    EX2：${createSelect("ex2", OPTIONS.ex)}
+    <button onclick="saveData()">保存</button>
+  `;
+  document.getElementById("inputArea").innerHTML = box;
+}
+
+//-----------------------------------------------
+// ④ ソート欄を生成（指定なし付き）
+//-----------------------------------------------
+function buildSortArea() {
+  let box = `
+    防具名：${createSelect("sArmorName", OPTIONS.armorName, true)}
+    種類：${createSelect("sType", OPTIONS.type, true)}
+    パーツ：${createSelect("sPart", OPTIONS.part, true)}
+    叩き回数：${createSelect("sTimes", OPTIONS.times, true)}
+    叩き能力値：${createSelect("sPower", OPTIONS.power, true)}
+    EX1：${createSelect("sEx1", OPTIONS.ex, true)}
+    EX2：${createSelect("sEx2", OPTIONS.ex, true)}
+  `;
+  document.getElementById("sortArea").innerHTML = box;
+}
+
+//-----------------------------------------------
+// 保存
+//-----------------------------------------------
+function saveData() {
+  let item = {
+    name: document.getElementById("armorName").value,
+    type: document.getElementById("type").value,
+    part: document.getElementById("part").value,
+    times: document.getElementById("times").value,
+    power: document.getElementById("power").value,
+    ex1: document.getElementById("ex1").value,
+    ex2: document.getElementById("ex2").value
+  };
+
+  armorData.push(item);
+  localStorage.setItem("armorData", JSON.stringify(armorData));
+  drawAll();
+}
+
+//-----------------------------------------------
+// 削除
+//-----------------------------------------------
+function deleteItem(index) {
+  armorData.splice(index, 1);
+  localStorage.setItem("armorData", JSON.stringify(armorData));
+  drawAll();
+  sortData();
+}
+
+//-----------------------------------------------
+// 全データ表示
+//-----------------------------------------------
+function drawAll() {
+  let list = document.getElementById("allDataList");
+  list.innerHTML = "";
+
+  armorData.forEach((d, i) => {
+    let div = document.createElement("div");
+    div.className = "result-line";
+    div.innerHTML = 
+      `<span>${i+1}. ${d.name} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</span>
+       <button class="delete-btn" onclick="deleteItem(${i})">削除</button>`;
+    list.appendChild(div);
+  });
+}
+
+//-----------------------------------------------
+// ソート処理
+//-----------------------------------------------
+function sortData() {
+  let f = {
+    n: document.getElementById("sArmorName").value,
+    t: document.getElementById("sType").value,
+    p: document.getElementById("sPart").value,
+    T: document.getElementById("sTimes").value,
+    P: document.getElementById("sPower").value,
+    e1: document.getElementById("sEx1").value,
+    e2: document.getElementById("sEx2").value
+  };
+
+  let result = armorData.filter(d =>
+    (f.n === "" || d.name === f.n) &&
+    (f.t === "" || d.type === f.t) &&
+    (f.p === "" || d.part === f.p) &&
+    (f.T === "" || d.times === f.T) &&
+    (f.P === "" || d.power === f.P) &&
+    (f.e1 === "" || d.ex1 === f.e1) &&
+    (f.e2 === "" || d.ex2 === f.e2)
+  );
+
+  let list = document.getElementById("sortedList");
+  list.innerHTML = "";
+
+  result.forEach((d) => {
+    let idx = armorData.indexOf(d);
+    let div = document.createElement("div");
+    div.className = "result-line";
+    div.innerHTML = 
+      `<span>${d.name} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</span>
+       <button class="delete-btn" onclick="deleteItem(${idx})">削除</button>`;
+    list.appendChild(div);
+  });
+}
+
+//-----------------------------------------------
+buildInputArea();
+buildSortArea();
+drawAll();
+//-----------------------------------------------
+</script>
+
+</body>
+</html>
