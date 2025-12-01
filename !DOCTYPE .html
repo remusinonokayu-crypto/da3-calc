@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>防具データ管理（完全修正版）</title>
+<style>
+  :root{
+    --bg:#ffffff; --text:#000000; --panel:#f6f6f6; --border:#ccc; --accent:#4a8;
+  }
+  body.dark{
+    --bg:#1e1e1e; --text:#e8e8e8; --panel:#2b2b2b; --border:#444; --accent:#5ca;
+  }
+  body{
+    background:var(--bg); color:var(--text); font-family: sans-serif;
+    padding:18px; transition:background .2s, color .2s;
+  }
+
+  h2{margin-top:0}
+  select,input{background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px; margin:4px 0;}
+  button{padding:6px 10px; margin-left:6px; cursor:pointer; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text);}
+  .toggle-btn{background:var(--accent); color:#fff; border:none; padding:6px 10px; border-radius:6px;}
+  .section{margin-bottom:18px}
+  .result-box{padding:8px; border:1px solid var(--border); margin:6px 0; background:var(--panel); display:flex; justify-content:space-between; align-items:center;}
+  .delete-btn{background:#d44; color:#fff; border:none; padding:6px 8px; border-radius:6px; cursor:pointer;}
+  .fold-header{display:flex; justify-content:space-between; align-items:center; background:var(--panel); padding:8px; border:1px solid var(--border); margin-top:8px; border-radius:6px; cursor:pointer;}
+  .fold-content{padding:6px 10px; border:1px solid var(--border); border-top:none; margin-bottom:10px; background:transparent;}
+  .small{font-size:0.9rem}
+  .muted{color:rgba(0,0,0,0.5)}
+  .search{width:60%; padding:6px}
+  .inline{display:inline-block; vertical-align:middle}
+  @media (max-width:640px){
+    .search{width:100%}
+  }
+</style>
+</head>
+<body>
+<h2>防具データ管理（完全修正版）</h2>
+
+<label><input type="checkbox" id="darkToggle"> ダークモード</label>
+
+<hr>
+
+<!-- 入力 -->
+<div class="section">
+  <button class="toggle-btn" onclick="toggleSection('inputWrap')">▼ 入力エリア</button>
+  <div id="inputWrap" style="margin-top:8px"></div>
+</div>
+
+<!-- ソート -->
+<div class="section">
+  <button class="toggle-btn" onclick="toggleSection('sortWrap')">▼ ソート条件</button>
+  <div id="sortWrap" style="margin-top:8px"></div>
+  <div style="margin-top:8px;">
+    <button onclick="sortData()">ソート実行</button>
+  </div>
+</div>
+
+<h3>ソート結果（町別）</h3>
+<div id="sortResult"></div>
+
+<hr>
+
+<h3>保存されている全データ（町別）</h3>
+<div id="allList"></div>
+
+<script>
+/* ---------------------------
+   OPTIONS (そのまま維持)
+   --------------------------- */
+const OPTIONS = {
+  towns: ["TownA", "TownB", "TownC"],
+
+  armorName: {
+    "TownA": ["鉄のよろい", "布のローブ", "皮のアーマー"],
+    "TownB": ["鉄の兜", "布の服", "皮の胸当て"],
+    "TownC": ["鉄の靴", "布の靴", "皮の靴"]
+  },
+
+  type: ["金属", "布", "皮"],
+
+  part: ["頭", "胴体", "足"],
+
+  times: ["1","2","3","4","5","6","7","8","9","10","11","12","13","14"],
+
+  power: {
+    "頭": ["精神", "魔力", "守備"],
+    "胴体": ["守備", "体力", "精神"],
+    "足": ["素早さ", "力", "守備"]
+  },
+
+  ex: ["なし", "攻撃UP", "防御UP", "魔力UP"]
+};
+
+/* ---------------------------
+   localStorage 読み込み（堅牢）
+   armorData は { TownA: [], TownB: [], TownC: [] }
+   --------------------------- */
+function loadArmorData(){
+  const raw = localStorage.getItem("armorData");
+  if (!raw){
+    // 初回：townごとの配列を用意
+    const init = {};
+    OPTIONS.towns.forEach(t=> init[t] = []);
+    localStorage.setItem("armorData", JSON.stringify(init));
+    return init;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    // 保険：存在しない town を補う
+    OPTIONS.towns.forEach(t => {
+      if (!Array.isArray(parsed[t])) parsed[t] = [];
+    });
+    return parsed;
+  } catch(e){
+    // 壊れていれば再初期化（既存を消したくないならここを変更）
+    const init = {};
+    OPTIONS.towns.forEach(t=> init[t] = []);
+    localStorage.setItem("armorData", JSON.stringify(init));
+    return init;
+  }
+}
+
+let armorData = loadArmorData();
+
+/* ---------------------------
+   ダークモード復元
+   --------------------------- */
+(function initDarkMode(){
+  const saved = localStorage.getItem("darkMode") || "light";
+  document.body.classList.toggle("dark", saved === "dark");
+  document.getElementById("darkToggle").checked = saved === "dark";
+  document.getElementById("darkToggle").addEventListener("change", () => {
+    const isDark = document.getElementById("darkToggle").checked;
+    document.body.classList.toggle("dark", isDark);
+    localStorage.setItem("darkMode", isDark ? "dark" : "light");
+  });
+})();
+
+/* ---------------------------
+   ヘルパー（select生成など）
+   --------------------------- */
+function createSelectHTML(id, arr, addBlank=false){
+  let s = `<select id="${id}">`;
+  if (addBlank) s += `<option value="">指定なし</option>`;
+  arr.forEach(v => s += `<option value="${v}">${v}</option>`);
+  s += `</select>`;
+  return s;
+}
+
+function toggleSection(id){
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+/* ---------------------------
+   入力エリア構築（既存機構を壊さない）
+   --------------------------- */
+function buildInputArea(){
+  const html = `
+    町：${createSelectHTML("town", OPTIONS.towns)} <br>
+    防具名：<select id="armorName"></select><br>
+    種類：${createSelectHTML("type", OPTIONS.type)}<br>
+    パーツ：${createSelectHTML("part", OPTIONS.part)}<br>
+    叩き回数：${createSelectHTML("times", OPTIONS.times)}<br>
+    能力値：<select id="power"></select><br>
+    EX1：${createSelectHTML("ex1", OPTIONS.ex)} EX2：${createSelectHTML("ex2", OPTIONS.ex)}<br>
+    <button onclick="saveData()">保存</button>
+  `;
+  const wrap = document.getElementById("inputWrap");
+  wrap.innerHTML = html;
+
+  // town/part の変更に応じて防具名・能力値更新
+  document.getElementById("town").addEventListener("change", updateArmorName);
+  document.getElementById("part").addEventListener("change", updatePower);
+
+  // 初期値セット
+  updateArmorName();
+  updatePower();
+}
+
+function updateArmorName(){
+  const t = document.getElementById("town").value;
+  const box = document.getElementById("armorName");
+  box.innerHTML = OPTIONS.armorName[t].map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+function updatePower(){
+  const p = document.getElementById("part").value;
+  const box = document.getElementById("power");
+  box.innerHTML = (OPTIONS.power[p]||[]).map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+/* ---------------------------
+   ソートエリア構築（町指定で防具名・powerも絞れる）
+   --------------------------- */
+function buildSortArea(){
+  const html = `
+    町：${createSelectHTML("sTown", OPTIONS.towns, true)}<br>
+    防具名：<select id="sArmorName"><option value="">指定なし</option></select><br>
+    種類：${createSelectHTML("sType", OPTIONS.type, true)}<br>
+    パーツ：${createSelectHTML("sPart", OPTIONS.part, true)}<br>
+    叩き回数：${createSelectHTML("sTimes", OPTIONS.times, true)}<br>
+    能力値：<select id="sPower"><option value="">指定なし</option></select><br>
+    EX1：${createSelectHTML("sEx1", OPTIONS.ex, true)} EX2：${createSelectHTML("sEx2", OPTIONS.ex, true)}<br><br>
+    🔍全文検索： <input id="sortSearch" class="search" placeholder="例：鉄、守備、UP など">
+  `;
+  const wrap = document.getElementById("sortWrap");
+  wrap.innerHTML = html;
+
+  document.getElementById("sTown").addEventListener("change", updateSortArmorName);
+  document.getElementById("sPart").addEventListener("change", updateSortPower);
+}
+
+function updateSortArmorName(){
+  const t = document.getElementById("sTown").value;
+  const box = document.getElementById("sArmorName");
+  if (!t){ box.innerHTML = `<option value="">指定なし</option>`; return; }
+  box.innerHTML = `<option value="">指定なし</option>` + OPTIONS.armorName[t].map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+function updateSortPower(){
+  const p = document.getElementById("sPart").value;
+  const box = document.getElementById("sPower");
+  if (!p){ box.innerHTML = `<option value="">指定なし</option>`; return; }
+  box.innerHTML = `<option value="">指定なし</option>` + (OPTIONS.power[p]||[]).map(v=>`<option value="${v}">${v}</option>`).join("");
+}
+
+/* ---------------------------
+   データ保存（localStorageへ）
+   既存機構を保ったまま堅牢な保存を行う
+   --------------------------- */
+function saveData(){
+  const t = document.getElementById("town").value;
+  const item = {
+    town: t,
+    armorName: document.getElementById("armorName").value,
+    type: document.getElementById("type").value,
+    part: document.getElementById("part").value,
+    times: document.getElementById("times").value,
+    power: document.getElementById("power").value,
+    ex1: document.getElementById("ex1").value,
+    ex2: document.getElementById("ex2").value
+  };
+
+  // push と保存（armorData 構造は town -> array）
+  armorData[t].push(item);
+  try {
+    localStorage.setItem("armorData", JSON.stringify(armorData));
+  } catch(e){
+    alert("localStorage への保存でエラーが発生しました: " + e.message);
+    return;
+  }
+
+  drawAll();         // 全表示を更新
+  sortData();        // ソート結果も更新（見ているなら）
+  alert("保存しました");
+}
+
+/* ---------------------------
+   削除（町ごと）
+   --------------------------- */
+function deleteItem(town, index){
+  if (!confirm("削除しますか？")) return;
+  armorData[town].splice(index,1);
+  localStorage.setItem("armorData", JSON.stringify(armorData));
+  drawAll();
+  sortData();
+}
+
+/* ---------------------------
+   drawAll(): 町別 折りたたみ付きで表示
+   - 町ごとにヘッダー（展開/折畳）
+   - 各アイテムに削除ボタン
+   --------------------------- */
+function drawAll(){
+  const out = document.getElementById("allList");
+  out.innerHTML = "";
+
+  OPTIONS.towns.forEach((town, ti) => {
+    // 見出し（折りたたみコントロール）
+    const header = document.createElement("div");
+    header.className = "fold-header";
+    header.id = `all-header-${town}`;
+
+    const left = document.createElement("div");
+    left.innerHTML = `<strong>${town}</strong> <span class="muted small">(${armorData[town].length}件)</span>`;
+    header.appendChild(left);
+
+    const btn = document.createElement("button");
+    btn.textContent = "展開";
+    btn.onclick = () => {
+      const content = document.getElementById(`all-content-${town}`);
+      const showing = content.style.display !== "none";
+      content.style.display = showing ? "none" : "block";
+      btn.textContent = showing ? "展開" : "折畳";
+    };
+    header.appendChild(btn);
+
+    out.appendChild(header);
+
+    // コンテンツ
+    const content = document.createElement("div");
+    content.className = "fold-content";
+    content.id = `all-content-${town}`;
+
+    // 初期は表示（必要なら閉じる）
+    content.style.display = "block";
+
+    if (armorData[town].length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "result-box";
+      empty.textContent = "（データなし）";
+      content.appendChild(empty);
+    } else {
+      armorData[town].forEach((d, i) => {
+        const row = document.createElement("div");
+        row.className = "result-box";
+        row.innerHTML = `
+          <div class="small">${i}. ${d.armorName} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</div>
+          <div><button class="delete-btn" onclick="deleteItem('${town}', ${i})">削除</button></div>
+        `;
+        content.appendChild(row);
+      });
+    }
+
+    out.appendChild(content);
+  });
+}
+
+/* ---------------------------
+   sortData(): 町ごと分けて表示（完全一致系条件 + 全文検索）
+   - 町単位で折畳表示（該当件数0なら「該当なし」）
+   --------------------------- */
+function sortData(){
+  const cond = {
+    town: document.getElementById("sTown") ? document.getElementById("sTown").value : "",
+    armorName: document.getElementById("sArmorName") ? document.getElementById("sArmorName").value : "",
+    type: document.getElementById("sType") ? document.getElementById("sType").value : "",
+    part: document.getElementById("sPart") ? document.getElementById("sPart").value : "",
+    times: document.getElementById("sTimes") ? document.getElementById("sTimes").value : "",
+    power: document.getElementById("sPower") ? document.getElementById("sPower").value : "",
+    ex1: document.getElementById("sEx1") ? document.getElementById("sEx1").value : "",
+    ex2: document.getElementById("sEx2") ? document.getElementById("sEx2").value : "",
+    keyword: document.getElementById("sortSearch") ? document.getElementById("sortSearch").value.trim().toLowerCase() : ""
+  };
+
+  const out = document.getElementById("sortResult");
+  out.innerHTML = "";
+
+  OPTIONS.towns.forEach((town) => {
+    // 町で絞る場合は対象町のみ処理（ただし cond.town が空なら全部）
+    if (cond.town && cond.town !== town) return;
+
+    const matches = armorData[town].filter(d => {
+      // 完全一致フィルタ
+      if (cond.armorName && d.armorName !== cond.armorName) return false;
+      if (cond.type && d.type !== cond.type) return false;
+      if (cond.part && d.part !== cond.part) return false;
+      if (cond.times && d.times !== cond.times) return false;
+      if (cond.power && d.power !== cond.power) return false;
+      if (cond.ex1 && d.ex1 !== cond.ex1) return false;
+      if (cond.ex2 && d.ex2 !== cond.ex2) return false;
+
+      // 全文検索（任意のフィールド）
+      if (cond.keyword) {
+        const hay = [d.town, d.armorName, d.type, d.part, d.times, d.power, d.ex1, d.ex2].join(" ").toLowerCase();
+        if (!hay.includes(cond.keyword)) return false;
+      }
+      return true;
+    });
+
+    // 町のヘッダ
+    const header = document.createElement("div");
+    header.className = "fold-header";
+    header.innerHTML = `<div><strong>${town}</strong> <span class="muted small">(${matches.length}件)</span></div>`;
+    // 展開ボタン
+    const btn = document.createElement("button");
+    btn.textContent = "展開";
+    let contentId = `sort-content-${town}`;
+    btn.onclick = () => {
+      const c = document.getElementById(contentId);
+      const showing = c.style.display !== "none";
+      c.style.display = showing ? "none" : "block";
+      btn.textContent = showing ? "展開" : "折畳";
+    };
+    header.appendChild(btn);
+
+    out.appendChild(header);
+
+    // コンテンツ
+    const content = document.createElement("div");
+    content.className = "fold-content";
+    content.id = contentId;
+    content.style.display = "block";
+
+    if (matches.length === 0) {
+      const none = document.createElement("div");
+      none.className = "result-box";
+      none.textContent = "（該当なし）";
+      content.appendChild(none);
+    } else {
+      matches.forEach((d, i) => {
+        // index in armorData[town] for delete
+        const idx = armorData[town].indexOf(d);
+        const row = document.createElement("div");
+        row.className = "result-box";
+        row.innerHTML = `
+          <div class="small">${idx}. ${d.armorName} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</div>
+          <div><button class="delete-btn" onclick="deleteItem('${town}', ${idx})">削除</button></div>
+        `;
+        content.appendChild(row);
+      });
+    }
+
+    out.appendChild(content);
+  });
+}
+
+/* ---------------------------
+   初期化
+   --------------------------- */
+buildInputArea();
+buildSortArea();
+drawAll();
+
+</script>
+</body>
+</html>
