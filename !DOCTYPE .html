@@ -315,7 +315,7 @@ function drawAll(){
     content.id = `all-content-${town}`;
 
     // 初期は表示（必要なら閉じる）
-    content.style.display = "block";
+    content.style.display = "none";
 
     if (armorData[town].length === 0) {
       const empty = document.createElement("div");
@@ -437,5 +437,6 @@ drawAll();
 </script>
 </body>
 </html>
+
 
 
