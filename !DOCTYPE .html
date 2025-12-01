@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>防具データ管理（完全修正版）</title>
+<title>防具データ管理</title>
 <style>
   :root{
     --bg:#ffffff; --text:#000000; --panel:#f6f6f6; --border:#ccc; --accent:#4a8;
@@ -35,7 +35,7 @@
 </style>
 </head>
 <body>
-<h2>防具データ管理（完全修正版）</h2>
+<h2>防具データ管理</h2>
 
 <label><input type="checkbox" id="darkToggle"> ダークモード</label>
 
@@ -43,7 +43,7 @@
 
 <!-- 入力 -->
 <div class="section">
-  <button class="toggle-btn" onclick="toggleSection('inputWrap')">▼ 入力エリア</button>
+  <button class="toggle-btn" onclick="toggleSection('inputWrap')">▼ 選択エリア</button>
   <div id="inputWrap" style="margin-top:8px"></div>
 </div>
 
@@ -69,13 +69,24 @@
    OPTIONS (そのまま維持)
    --------------------------- */
 const OPTIONS = {
-  towns: ["TownA", "TownB", "TownC"],
+  towns: [
+    "レポロ村",
+    "マクルダ町",
+    "ルーチェア町",
+    "ソルソロ王国",
+    "サプネラ王国",
+    "セシド町"
+  ],
 
   armorName: {
-    "TownA": ["鉄のよろい", "布のローブ", "皮のアーマー"],
-    "TownB": ["鉄の兜", "布の服", "皮の胸当て"],
-    "TownC": ["鉄の靴", "布の靴", "皮の靴"]
-  },
+    "レポロ村": ["絹", "樹皮"],
+    "マクルダ町": ["骨", "森林"],
+    "ルーチェア町": ["魔石", "草粘魔"],
+    "ソルソロ王国": ["砂塵", "聖騎士"],
+    "サプネラ王国": ["光砂", "紅玉"],
+    "セシド町": ["炎牙", "乾泥"]
+  }
+};
 
   type: ["金属", "布", "皮"],
 
@@ -84,12 +95,12 @@ const OPTIONS = {
   times: ["1","2","3","4","5","6","7","8","9","10","11","12","13","14"],
 
   power: {
-    "頭": ["精神", "魔力", "守備"],
-    "胴体": ["守備", "体力", "精神"],
-    "足": ["素早さ", "力", "守備"]
+    "頭": ["体力", "精神", "守備力"],
+    "胴体": ["力", "魔力", "守備力"],
+    "足": ["素早さ", "撃力", "守備力"]
   },
 
-  ex: ["なし", "攻撃UP", "防御UP", "魔力UP"]
+  ex: ["体力", "力", "精神", "素早さ", "撃力", "器用さ"]
 };
 
 /* ---------------------------
@@ -161,9 +172,9 @@ function buildInputArea(){
     町：${createSelectHTML("town", OPTIONS.towns)} <br>
     防具名：<select id="armorName"></select><br>
     種類：${createSelectHTML("type", OPTIONS.type)}<br>
-    パーツ：${createSelectHTML("part", OPTIONS.part)}<br>
+    部位：${createSelectHTML("part", OPTIONS.part)}<br>
     叩き回数：${createSelectHTML("times", OPTIONS.times)}<br>
-    能力値：<select id="power"></select><br>
+    叩き能力値：<select id="power"></select><br>
     EX1：${createSelectHTML("ex1", OPTIONS.ex)} EX2：${createSelectHTML("ex2", OPTIONS.ex)}<br>
     <button onclick="saveData()">保存</button>
   `;
@@ -199,9 +210,9 @@ function buildSortArea(){
     町：${createSelectHTML("sTown", OPTIONS.towns, true)}<br>
     防具名：<select id="sArmorName"><option value="">指定なし</option></select><br>
     種類：${createSelectHTML("sType", OPTIONS.type, true)}<br>
-    パーツ：${createSelectHTML("sPart", OPTIONS.part, true)}<br>
+    部位：${createSelectHTML("sPart", OPTIONS.part, true)}<br>
     叩き回数：${createSelectHTML("sTimes", OPTIONS.times, true)}<br>
-    能力値：<select id="sPower"><option value="">指定なし</option></select><br>
+    叩き能力値：<select id="sPower"><option value="">指定なし</option></select><br>
     EX1：${createSelectHTML("sEx1", OPTIONS.ex, true)} EX2：${createSelectHTML("sEx2", OPTIONS.ex, true)}<br><br>
     🔍全文検索： <input id="sortSearch" class="search" placeholder="例：鉄、守備、UP など">
   `;
@@ -427,3 +438,4 @@ drawAll();
 </script>
 </body>
 </html>
+
