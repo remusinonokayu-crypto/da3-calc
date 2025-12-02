@@ -119,6 +119,9 @@
 <!-- 保存数設定 -->
 <div class="box">
   <h2>履歴保存数の設定</h2>
+  <div id="currentLimitView" style="margin-top:10px; font-weight:bold;">
+  現在の保存数：20件
+</div>
   <input id="historyLimitInput" type="number" min="1" value="20">
   <button onclick="updateHistoryLimit()">保存数を変更</button>
 </div>
@@ -166,6 +169,18 @@
 </div>
 
 <script>
+  function showHistoryLimit() {
+  const mode = document.getElementById("categorySelect").value;
+  const town = document.getElementById("townSelect").value;
+  const key = "townData_" + mode + "_" + town;
+
+  let data = JSON.parse(localStorage.getItem(key) || '{}');
+  let count = data.records ? data.records.length : 0;
+
+  document.getElementById("currentLimitView").textContent =
+    `現在の保存数：${count}件 / 上限：${HISTORY_LIMIT}件`;
+}
+
 /* ===========================
    テーマ管理
 =========================== */
@@ -406,6 +421,8 @@ function updateHistoryLimit() {
 
   alert(`保存数を ${HISTORY_LIMIT} 件に更新しました。`);
   showStats();
+  showHistoryLimit();
+
 }
 
 
@@ -446,6 +463,8 @@ function loadTown() {
   });
 
   showStats();
+  showHistoryLimit();
+
 }
 
 
@@ -713,6 +732,8 @@ function showAllTownSummary() {
 
 /* 初期ロード */
 loadCategory();
+showHistoryLimit();
+
 </script>
 
 </body>
