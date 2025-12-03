@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>ホーム画面</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body {
+  font-family: sans-serif;
+  margin: 20px;
+  background-color: #fff;
+  color: #000;
+  transition: background-color 0.3s, color 0.3s;
+}
+body.dark {
+  background-color: #121212;
+  color: #eee;
+}
+button {
+  display: inline-block;
+  margin: 10px;
+  padding: 15px 25px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+button:hover {
+  background-color: #0056b3;
+}
+body.dark button {
+  background-color: #444;
+  color: #fff;
+}
+body.dark button:hover {
+  background-color: #666;
+}
+@media (max-width: 600px) {
+  button {
+    width: 100%;
+    padding: 12px 0;
+    font-size: 14px;
+  }
+}
+</style>
+</head>
+<body>
+
+<h1>DA3計算機（開発中）</h1>
+ <div class="box">
+  <h2>説明</h2>
+  <p>
+    このツールは、採取・採掘アイテムの履歴を保存し、統計を表示する管理システムです。<br>
+    ※保存した履歴はブラウザ機能のIndexedDBに保存されるためキャッシュをクリアしても消えない方式になりました。
+  </p>
+</div>
+<button onclick="location.href='IndexedDBarmas.html'">試験版新データ保存形式 防具データ管理へ移動</button>
+<br><br>
+<button onclick="toggleDarkMode()">ダークモード切替</button>
+<footer>
+  開発者: Reika
+</footer>
+<script>
+// ダークモード状態をlocalStorageに保存
+document.addEventListener('DOMContentLoaded', () => {
+    const darkMode = localStorage.getItem('homeDarkMode');
+    if(darkMode === 'true') document.body.classList.add('dark');
+});
+
+function toggleDarkMode() {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('homeDarkMode', document.body.classList.contains('dark'));
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
