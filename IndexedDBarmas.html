@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>防具データ管理 (IndexedDB版)</title>
+
+<style>
+  :root{
+    --bg:#ffffff; --text:#000000; --panel:#f6f6f6; --border:#ccc; --accent:#4a8;
+  }
+  body.dark{
+    --bg:#1e1e1e; --text:#e8e8e8; --panel:#2b2b2b; --border:#444; --accent:#5ca;
+  }
+  body{
+    background:var(--bg); color:var(--text); font-family: sans-serif;
+    padding:18px; transition:background .2s, color .2s;
+  }
+
+  h2{margin-top:0}
+  select,input{background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px; margin:4px 0;}
+  button{padding:6px 10px; margin-left:6px; cursor:pointer; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text);}
+  .toggle-btn{background:var(--accent); color:#fff; border:none; padding:6px 10px; border-radius:6px;}
+  .section{margin-bottom:18px}
+  .result-box{padding:8px; border:1px solid var(--border); margin:6px 0; background:var(--panel); display:flex; justify-content:space-between; align-items:center;}
+  .delete-btn{background:#d44; color:#fff; border:none; padding:6px 8px; border-radius:6px; cursor:pointer;}
+  .fold-header{display:flex; justify-content:space-between; align-items:center; background:var(--panel); padding:8px; border:1px solid var(--border); margin-top:8px; border-radius:6px; cursor:pointer;}
+  .fold-content{padding:6px 10px; border:1px solid var(--border); border-top:none; margin-bottom:10px; background:transparent;}
+  .small{font-size:0.9rem}
+  .muted{color:rgba(0,0,0,0.5)}
+  .search{width:60%; padding:6px}
+  .inline{display:inline-block; vertical-align:middle}
+  @media (max-width:640px){
+    .search{width:100%}
+  }
+</style>
+
+<!-- Dexie.js (IndexedDB ラッパー) -->
+<script src="https://cdn.jsdelivr.net/npm/dexie@3.2.3/dist/dexie.min.js"></script>
+</head>
+<body>
+<h2>防具データ管理</h2>
+<button onclick="location.href='index.html'">ホームへ移動</button>
+<label><input type="checkbox" id="darkToggle"> ダークモード</label>
+
+<hr>
+
+<!-- 入力 -->
+<div class="section">
+  <button class="toggle-btn" onclick="toggleSection('inputWrap')">▼ 選択エリア</button>
+  <div id="inputWrap" style="margin-top:8px"></div>
+</div>
+
+<!-- ソート -->
+<div class="section">
+  <button class="toggle-btn" onclick="toggleSection('sortWrap')">▼ ソート条件</button>
+  <div id="sortWrap" style="margin-top:8px"></div>
+  <div style="margin-top:8px;">
+    <button onclick="sortData()">ソート実行</button>
+  </div>
+</div>
+
+<h3>ソート結果</h3>
+<div id="sortResult"></div>
+
+<hr>
+
+<h3>保存されている全データ</h3>
+<div id="allList"></div>
+
+<script>
+/* ---------------------------
+   OPTIONS (そのまま維持)
+   --------------------------- */
+const OPTIONS = {
+  towns: [
+    "レポロ村",
+    "マクルダ町",
+    "ルーチェア町",
+    "ソルソロ王国",
+    "サプネラ王国",
+    "セシド町"
+  ],
+
+  armorName: {
+    "レポロ村": ["絹", "樹皮"],
+    "マクルダ町": ["骨", "森林"],
+    "ルーチェア町": ["魔石", "草粘魔"],
+    "ソルソロ王国": ["砂塵", "聖騎士"],
+    "サプネラ王国": ["光砂", "紅玉"],
+    "セシド町": ["炎牙", "乾泥"]
+  },
+
+  type: ["金属", "布", "皮"],
+
+  part: ["頭", "胴体", "足"],
+
+  times: ["1","2","3","4","5","6","7","8","9","10","11","12","13","14"],
+
+  power: {
+    "頭": ["体力", "精神", "守備力"],
+    "胴体": ["力", "魔力", "守備力"],
+    "足": ["素早さ", "撃力", "守備力"]
+  },
+
+  ex: ["体力", "力", "精神", "素早さ", "撃力", "器用さ"]
+};
+
+/* =================================================
+   IndexedDB 初期化 (Dexie)
+   - items: 各防具レコード（id 自動）
+   - settings: キーと値の保存（ダークモード等）
+================================================= */
+const db = new Dexie("ArmorDB_v1");
+db.version(1).stores({
+  items: "++id, town, armorName",   // 主に town で検索
+  settings: "&key"                  // key を一意に
+});
+
+/* =================================================
+   armorData = { town: [ itemObj, ... ], ... }
+   itemObj は { id, town, armorName, type, part, times, power, ex1, ex2 }
+   （元の機構を壊さないためメモリ上キャッシュを使います）
+================================================= */
+let armorData = {};
+OPTIONS.towns.forEach(t => armorData[t] = []);
+
+/* ---------------------------
+   ダークモード復元（IndexedDB へ移行）
+   --------------------------- */
+async function initDarkModeFromDB(){
+  try {
+    const row = await db.settings.get("darkMode");
+    const saved = row ? row.value : "light";
+    document.body.classList.toggle("dark", saved === "dark");
+    document.getElementById("darkToggle").checked = saved === "dark";
+  } catch(e) {
+    // 無視してデフォルト
+  }
+
+  document.getElementById("darkToggle").addEventListener("change", async () => {
+    const isDark = document.getElementById("darkToggle").checked;
+    document.body.classList.toggle("dark", isDark);
+    try {
+      await db.settings.put({ key: "darkMode", value: isDark ? "dark" : "light" });
+    } catch(e) {
+      console.error("settings 保存エラー:", e);
+    }
+  });
+}
+
+/* ---------------------------
+   ヘルパー（select生成など）
+   --------------------------- */
+function createSelectHTML(id, arr, addBlank=false){
+  let s = `<select id="${id}">`;
+  if (addBlank) s += `<option value="">指定なし</option>`;
+  arr.forEach(v => s += `<option value="${v}">${v}</option>`);
+  s += `</select>`;
+  return s;
+}
+
+function toggleSection(id){
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+/* ---------------------------
+   入力エリア構築（既存機構を壊さない）
+   --------------------------- */
+function buildInputArea(){
+  const html = `
+    町：${createSelectHTML("town", OPTIONS.towns)} <br>
+    防具名：<select id="armorName"></select><br>
+    種類：${createSelectHTML("type", OPTIONS.type)}<br>
+    部位：${createSelectHTML("part", OPTIONS.part)}<br>
+    叩き回数：${createSelectHTML("times", OPTIONS.times)}<br>
+    叩き能力値：<select id="power"></select><br>
+    EX1：${createSelectHTML("ex1", OPTIONS.ex)} EX2：${createSelectHTML("ex2", OPTIONS.ex)}<br>
+    <button onclick="saveData()">保存</button>
+  `;
+  const wrap = document.getElementById("inputWrap");
+  wrap.innerHTML = html;
+
+  // town/part の変更に応じて防具名・能力値更新
+  document.getElementById("town").addEventListener("change", updateArmorName);
+  document.getElementById("part").addEventListener("change", updatePower);
+
+  // 初期値セット
+  updateArmorName();
+  updatePower();
+}
+
+function updateArmorName(){
+  const t = document.getElementById("town").value;
+  const box = document.getElementById("armorName");
+  box.innerHTML = OPTIONS.armorName[t].map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+function updatePower(){
+  const p = document.getElementById("part").value;
+  const box = document.getElementById("power");
+  box.innerHTML = (OPTIONS.power[p]||[]).map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+/* ---------------------------
+   ソートエリア構築（町指定で防具名・powerも絞れる）
+   --------------------------- */
+function buildSortArea(){
+  const html = `
+    町：${createSelectHTML("sTown", OPTIONS.towns, true)}<br>
+    防具名：<select id="sArmorName"><option value="">指定なし</option></select><br>
+    種類：${createSelectHTML("sType", OPTIONS.type, true)}<br>
+    部位：${createSelectHTML("sPart", OPTIONS.part, true)}<br>
+    叩き回数：${createSelectHTML("sTimes", OPTIONS.times, true)}<br>
+    叩き能力値：<select id="sPower"><option value="">指定なし</option></select><br>
+    EX1：${createSelectHTML("sEx1", OPTIONS.ex, true)} EX2：${createSelectHTML("sEx2", OPTIONS.ex, true)}<br><br>
+    🔍全文検索： <input id="sortSearch" class="search" placeholder="例：鉄、守備、UP など">
+  `;
+  const wrap = document.getElementById("sortWrap");
+  wrap.innerHTML = html;
+
+  document.getElementById("sTown").addEventListener("change", updateSortArmorName);
+  document.getElementById("sPart").addEventListener("change", updateSortPower);
+}
+
+function updateSortArmorName(){
+  const t = document.getElementById("sTown").value;
+  const box = document.getElementById("sArmorName");
+  if (!t){ box.innerHTML = `<option value="">指定なし</option>`; return; }
+  box.innerHTML = `<option value="">指定なし</option>` + OPTIONS.armorName[t].map(v => `<option value="${v}">${v}</option>`).join("");
+}
+
+function updateSortPower(){
+  const p = document.getElementById("sPart").value;
+  const box = document.getElementById("sPower");
+  if (!p){ box.innerHTML = `<option value="">指定なし</option>`; return; }
+  box.innerHTML = `<option value="">指定なし</option>` + (OPTIONS.power[p]||[]).map(v=>`<option value="${v}">${v}</option>`).join("");
+}
+
+/* ---------------------------
+   IndexedDB ↔ armorData 同期処理
+   --------------------------- */
+
+/* IndexedDB → armorData（初期ロード） */
+async function loadArmorData(){
+  try {
+    const rows = await db.items.toArray();
+    // 初期化
+    OPTIONS.towns.forEach(t => armorData[t] = []);
+    // 取り込み
+    rows.forEach(row => {
+      const t = row.town;
+      if (!armorData[t]) armorData[t] = [];
+      armorData[t].push({
+        id: row.id,
+        town: row.town,
+        armorName: row.armorName,
+        type: row.type,
+        part: row.part,
+        times: row.times,
+        power: row.power,
+        ex1: row.ex1,
+        ex2: row.ex2
+      });
+    });
+  } catch(e) {
+    console.error("loadArmorData エラー:", e);
+    // 空初期化
+    OPTIONS.towns.forEach(t => armorData[t] = []);
+  }
+}
+
+/* IndexedDB に保存（保存元は UI の input） */
+async function saveData(){
+  const t = document.getElementById("town").value;
+  const item = {
+    town: t,
+    armorName: document.getElementById("armorName").value,
+    type: document.getElementById("type").value,
+    part: document.getElementById("part").value,
+    times: document.getElementById("times").value,
+    power: document.getElementById("power").value,
+    ex1: document.getElementById("ex1").value,
+    ex2: document.getElementById("ex2").value
+  };
+
+  try {
+    const id = await db.items.add(item);
+    item.id = id;
+    // メモリキャッシュに追加
+    if (!armorData[t]) armorData[t] = [];
+    armorData[t].push(item);
+
+    drawAll();
+    sortData();
+    alert("保存しました（IndexedDB）");
+  } catch(e) {
+    console.error("saveData エラー:", e);
+    alert("保存に失敗しました: " + e.message);
+  }
+}
+
+/* IndexedDB から削除（id 単位） と armorData から削除 */
+async function deleteItem(town, index){
+  if (!confirm("削除しますか？")) return;
+  const item = armorData[town][index];
+  if (!item) return;
+
+  try {
+    await db.items.delete(item.id);
+  } catch(e) {
+    console.error("DB削除エラー:", e);
+    alert("削除に失敗しました");
+    return;
+  }
+
+  armorData[town].splice(index,1);
+  drawAll();
+  sortData();
+}
+
+/* ---------------------------
+   drawAll(): 町別 折りたたみ付きで表示
+   （UI 機構は元のまま）
+   --------------------------- */
+function drawAll(){
+  const out = document.getElementById("allList");
+  out.innerHTML = "";
+
+  OPTIONS.towns.forEach((town, ti) => {
+    // 見出し（折りたたみコントロール）
+    const header = document.createElement("div");
+    header.className = "fold-header";
+    header.id = `all-header-${town}`;
+
+    const left = document.createElement("div");
+    left.innerHTML = `<strong>${town}</strong> <span class="muted small">(${armorData[town].length}件)</span>`;
+    header.appendChild(left);
+
+    const btn = document.createElement("button");
+    btn.textContent = "展開";
+    btn.onclick = () => {
+      const content = document.getElementById(`all-content-${town}`);
+      const showing = content.style.display !== "none";
+      content.style.display = showing ? "none" : "block";
+      btn.textContent = showing ? "展開" : "折畳";
+    };
+    header.appendChild(btn);
+
+    out.appendChild(header);
+
+    // コンテンツ
+    const content = document.createElement("div");
+    content.className = "fold-content";
+    content.id = `all-content-${town}`;
+    content.style.display = "none";
+
+    if (!armorData[town] || armorData[town].length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "result-box";
+      empty.textContent = "（データなし）";
+      content.appendChild(empty);
+    } else {
+      armorData[town].forEach((d, i) => {
+        const row = document.createElement("div");
+        row.className = "result-box";
+        row.innerHTML = `
+          <div class="small">${i}. ${d.armorName} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</div>
+          <div><button class="delete-btn" onclick="deleteItem('${town}', ${i})">削除</button></div>
+        `;
+        content.appendChild(row);
+      });
+    }
+
+    out.appendChild(content);
+  });
+}
+
+/* ---------------------------
+   sortData(): 町ごと分けて表示（完全一致系条件 + 全文検索）
+   --------------------------- */
+function sortData(){
+  const cond = {
+    town: document.getElementById("sTown") ? document.getElementById("sTown").value : "",
+    armorName: document.getElementById("sArmorName") ? document.getElementById("sArmorName").value : "",
+    type: document.getElementById("sType") ? document.getElementById("sType").value : "",
+    part: document.getElementById("sPart") ? document.getElementById("sPart").value : "",
+    times: document.getElementById("sTimes") ? document.getElementById("sTimes").value : "",
+    power: document.getElementById("sPower") ? document.getElementById("sPower").value : "",
+    ex1: document.getElementById("sEx1") ? document.getElementById("sEx1").value : "",
+    ex2: document.getElementById("sEx2") ? document.getElementById("sEx2").value : "",
+    keyword: document.getElementById("sortSearch") ? document.getElementById("sortSearch").value.trim().toLowerCase() : ""
+  };
+
+  const out = document.getElementById("sortResult");
+  out.innerHTML = "";
+
+  OPTIONS.towns.forEach((town) => {
+    // 町で絞る場合は対象町のみ処理（ただし cond.town が空なら全部）
+    if (cond.town && cond.town !== town) return;
+
+    const matches = (armorData[town] || []).filter(d => {
+      // 完全一致フィルタ
+      if (cond.armorName && d.armorName !== cond.armorName) return false;
+      if (cond.type && d.type !== cond.type) return false;
+      if (cond.part && d.part !== cond.part) return false;
+      if (cond.times && d.times !== cond.times) return false;
+      if (cond.power && d.power !== cond.power) return false;
+      if (cond.ex1 && d.ex1 !== cond.ex1) return false;
+      if (cond.ex2 && d.ex2 !== cond.ex2) return false;
+
+      // 全文検索（任意のフィールド）
+      if (cond.keyword) {
+        const hay = [d.town, d.armorName, d.type, d.part, d.times, d.power, d.ex1, d.ex2].join(" ").toLowerCase();
+        if (!hay.includes(cond.keyword)) return false;
+      }
+      return true;
+    });
+
+    // 町のヘッダ
+    const header = document.createElement("div");
+    header.className = "fold-header";
+    header.innerHTML = `<div><strong>${town}</strong> <span class="muted small">(${matches.length}件)</span></div>`;
+    // 展開ボタン
+    const btn = document.createElement("button");
+    btn.textContent = "展開";
+    let contentId = `sort-content-${town}`;
+    btn.onclick = () => {
+      const c = document.getElementById(contentId);
+      const showing = c.style.display !== "none";
+      c.style.display = showing ? "none" : "block";
+      btn.textContent = showing ? "展開" : "折畳";
+    };
+    header.appendChild(btn);
+
+    out.appendChild(header);
+
+    // コンテンツ
+    const content = document.createElement("div");
+    content.className = "fold-content";
+    content.id = contentId;
+    content.style.display = "block";
+
+    if (matches.length === 0) {
+      const none = document.createElement("div");
+      none.className = "result-box";
+      none.textContent = "（該当なし）";
+      content.appendChild(none);
+    } else {
+      matches.forEach((d, i) => {
+        // index in armorData[town] for delete
+        const idx = armorData[town].indexOf(d);
+        const row = document.createElement("div");
+        row.className = "result-box";
+        row.innerHTML = `
+          <div class="small">${idx}. ${d.armorName} / ${d.type} / ${d.part} / ${d.times}回 / ${d.power} / EX:${d.ex1}, ${d.ex2}</div>
+          <div><button class="delete-btn" onclick="deleteItem('${town}', ${idx})">削除</button></div>
+        `;
+        content.appendChild(row);
+      });
+    }
+
+    out.appendChild(content);
+  });
+}
+
+/* ---------------------------
+   初期化（ページ読み込み時）
+   - IndexedDB から読み込んで armorData を構築
+   - UI を生成して表示（元の動作順序を維持）
+   --------------------------- */
+async function initAll(){
+  await initDarkModeFromDB();
+  await loadArmorData();
+  buildInputArea();
+  buildSortArea();
+  drawAll();
+  sortData();
+}
+
+/* ページロードで起動 */
+window.addEventListener("DOMContentLoaded", initAll);
+
+</script>
+</body>
+</html>
