@@ -71,7 +71,6 @@
     border: 1px solid #ccc;
   }
 
-  /* スマホ対応 */
   @media (max-width: 600px) {
     body {
       padding: 10px;
@@ -94,7 +93,6 @@
 
     .table-wrapper {
       overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
     }
     table { min-width: 600px; }
   }
@@ -105,6 +103,7 @@
 
 <h1>採取・採掘アイテム統計管理</h1>
 <button onclick="location.href='index.html'">ホームへ移動</button>
+
 <!-- テーマ切り替え -->
 <div class="box">
   <label>
@@ -116,14 +115,12 @@
   </label>
 </div>
 
-<!-- 保存数設定 -->
+<!-- 保存件数の表示（上限なし） -->
 <div class="box">
-  <h2>履歴保存数の設定</h2>
+  <h2>履歴情報</h2>
   <div id="currentLimitView" style="margin-top:10px; font-weight:bold;">
-  現在の保存数：20件
-</div>
-  <input id="historyLimitInput" type="number" min="1" value="20">
-  <button onclick="updateHistoryLimit()">保存数を変更</button>
+    現在の保存数：0件
+  </div>
 </div>
 
 <div class="box">
@@ -169,7 +166,11 @@
 </div>
 
 <script>
-  function showHistoryLimit() {
+
+/* ===========================
+   履歴件数を表示
+=========================== */
+function showHistoryLimit() {
   const mode = document.getElementById("categorySelect").value;
   const town = document.getElementById("townSelect").value;
   const key = "townData_" + mode + "_" + town;
@@ -178,7 +179,7 @@
   let count = data.records ? data.records.length : 0;
 
   document.getElementById("currentLimitView").textContent =
-    `現在の保存数：${count}件 / 上限：${HISTORY_LIMIT}件`;
+    `現在の保存数：${count}件`;
 }
 
 /* ===========================
@@ -373,61 +374,8 @@ const dataSet = {
   }
 };
 
-
-let HISTORY_LIMIT = 20;
-
-
 /* ===========================
-   保存数変更（警告機能付き）
-=========================== */
-function updateHistoryLimit() {
-  const newLimit = Number(document.getElementById("historyLimitInput").value);
-
-  if (!newLimit || newLimit <= 0) {
-    alert("保存数は 1 以上にしてください。");
-    return;
-  }
-
-  const mode = document.getElementById("categorySelect").value;
-  const town = document.getElementById("townSelect").value;
-  const key = "townData_" + mode + "_" + town;
-
-  let data = JSON.parse(localStorage.getItem(key) || '{}');
-  const currentCount = data.records ? data.records.length : 0;
-
-  if (currentCount > newLimit) {
-    const diff = currentCount - newLimit;
-
-    const ok = confirm(
-      `現在の履歴は ${currentCount} 件あります。\n` +
-      `保存数を ${newLimit} に変更すると、古い ${diff} 件が削除されます。\n` +
-      "本当に変更してよろしいですか？"
-    );
-
-    if (!ok) {
-      document.getElementById("historyLimitInput").value = HISTORY_LIMIT;
-      return;
-    }
-  }
-
-  HISTORY_LIMIT = newLimit;
-
-  if (data.records && data.records.length > HISTORY_LIMIT) {
-    while (data.records.length > HISTORY_LIMIT) {
-      data.records.shift();
-    }
-    localStorage.setItem(key, JSON.stringify(data));
-  }
-
-  alert(`保存数を ${HISTORY_LIMIT} 件に更新しました。`);
-  showStats();
-  showHistoryLimit();
-
-}
-
-
-/* ===========================
-   カテゴリ変更
+   町・カテゴリ切り替え
 =========================== */
 function loadCategory() {
   const mode = document.getElementById("categorySelect").value;
@@ -444,10 +392,6 @@ function loadCategory() {
   loadTown();
 }
 
-
-/* ===========================
-   町変更
-=========================== */
 function loadTown() {
   const mode = document.getElementById("categorySelect").value;
   const town = document.getElementById("townSelect").value;
@@ -464,12 +408,11 @@ function loadTown() {
 
   showStats();
   showHistoryLimit();
-
 }
 
 
 /* ===========================
-   データ保存（削除前警告）
+   保存（上限撤廃版）
 =========================== */
 function saveData() {
   const mode = document.getElementById("categorySelect").value;
@@ -482,15 +425,6 @@ function saveData() {
   if (!data.records) data.records = [];
   if (!data.undo) data.undo = [];
 
-  if (data.records.length >= HISTORY_LIMIT) {
-    const ok = confirm(
-      "保存上限に達しています。\n" +
-      "新しいデータを保存すると一番古い履歴が削除されます。\n" +
-      "続行しますか？"
-    );
-    if (!ok) return;
-  }
-
   const record = {};
   items.forEach(name => {
     record[name] = Number(document.getElementById("input_" + name).value);
@@ -498,18 +432,16 @@ function saveData() {
 
   data.records.push(record);
 
-  if (data.records.length > HISTORY_LIMIT)
-    data.records.shift();
-
   data.undo = [];
 
   localStorage.setItem(key, JSON.stringify(data));
   showStats();
+  showHistoryLimit();
 }
 
 
 /* ===========================
-   Undo
+   Undo / Redo
 =========================== */
 function undo() {
   const mode = document.getElementById("categorySelect").value;
@@ -525,12 +457,9 @@ function undo() {
 
   localStorage.setItem(key, JSON.stringify(data));
   showStats();
+  showHistoryLimit();
 }
 
-
-/* ===========================
-   Redo
-=========================== */
 function redo() {
   const mode = document.getElementById("categorySelect").value;
   const town = document.getElementById("townSelect").value;
@@ -544,6 +473,7 @@ function redo() {
 
   localStorage.setItem(key, JSON.stringify(data));
   showStats();
+  showHistoryLimit();
 }
 
 
@@ -560,8 +490,8 @@ function clearAll() {
 
   localStorage.removeItem(key);
   showStats();
+  showHistoryLimit();
 }
-
 
 /* ===========================
    町別統計
@@ -728,7 +658,6 @@ function showAllTownSummary() {
 
   document.getElementById("allTownSummary").innerHTML = html;
 }
-
 
 /* 初期ロード */
 loadCategory();
